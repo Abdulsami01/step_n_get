@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:step_n_get/account/my_account.dart';
 import 'package:step_n_get/account/profiledata.dart';
 import 'package:step_n_get/account/register.dart';
@@ -12,6 +13,8 @@ import 'package:step_n_get/screens/social.dart';
 import 'package:step_n_get/screens/steps.dart';
 import 'package:step_n_get/screens/terms_conditions.dart';
 import 'package:step_n_get/screens/testing.dart';
+
+import '../provider/userauth.dart';
 
 class Settings extends StatelessWidget {
   //updated
@@ -125,6 +128,7 @@ class Settings extends StatelessWidget {
             title: Text('Log Out'),
             onTap: () async {
               await FirebaseAuth.instance.signOut();
+              context.read<UserProvider>().setUserId(null);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(

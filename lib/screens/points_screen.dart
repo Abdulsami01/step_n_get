@@ -4,6 +4,11 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+
+import '../provider/pointsprovider.dart';
+import '../provider/userauth.dart';
 
 class PointsScreen extends StatefulWidget {
   @override
@@ -15,6 +20,7 @@ class _PointsScreenState extends State<PointsScreen> {
   bool _isTimerRunning = false;
   Timer? _timer;
   int _timerDuration = 15 * 60; // 15 minutes in seconds
+  Map<String, int> _dailyPoints = {}; // Store daily points
 
   void _startTimer() {
     const oneSec = Duration(seconds: 1);
@@ -49,6 +55,7 @@ class _PointsScreenState extends State<PointsScreen> {
   //   });
   // }
 
+  var thirdtmethod;
   RewardedAd? _rewardedAd;
   final adUnitId = Platform.isAndroid
       ? 'ca-app-pub-3940256099942544/5224354917'
@@ -57,6 +64,18 @@ class _PointsScreenState extends State<PointsScreen> {
   void initState() {
     _createRewardedAd();
     super.initState();
+    thirdtmethod = _fetchDailyPointsData();
+    // Add a delay of 2 seconds before fetching points
+    Future.delayed(Duration(seconds: 2), () {
+      // Fetch the current user ID from UserProvider
+      String? userId = context.read<UserProvider>().userId;
+      print("ussrrr zaa  $userId");
+
+      if (userId != null) {
+        // Call fetchPoints with the user ID
+        context.read<PointsProvider>().fetchTotalPoints(userId);
+      }
+    });
   }
 
 //create Ad
@@ -76,6 +95,23 @@ class _PointsScreenState extends State<PointsScreen> {
     );
   }
 
+  Future<void> _fetchDailyPointsData() async {
+    String? userId = context.read<UserProvider>().userId;
+    for (int index = 0; index < 6; index++) {
+      DateTime currentDate = DateTime.now().subtract(Duration(days: index + 1));
+      String formattedDate = DateFormat('yyyy-MM-dd').format(currentDate);
+
+      // Fetch daily points for the current date and store them in _dailyPoints
+      int points = await context
+          .read<PointsProvider>()
+          .fetchDailyPoints(userId!, currentDate);
+
+      setState(() {
+        _dailyPoints[formattedDate] = points;
+      });
+    }
+  }
+
   //shoew Ad
   void _showRewardedAd() {
     if (_rewardedAd != null) {
@@ -83,6 +119,10 @@ class _PointsScreenState extends State<PointsScreen> {
           FullScreenContentCallback(onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _createRewardedAd();
+        // Update points when the user earns a reward
+        final pointsProvider = context.read<PointsProvider>();
+        String? userId = context.read<UserProvider>().userId;
+        pointsProvider.updatePoints(userId!, 20);
       }, onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _createRewardedAd();
@@ -110,6 +150,7 @@ class _PointsScreenState extends State<PointsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pointsProvider = context.watch<PointsProvider>();
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.red,
@@ -138,7 +179,7 @@ class _PointsScreenState extends State<PointsScreen> {
               ),
               SizedBox(width: 5),
               Text(
-                '$_points', // Replace with the actual points value
+                '${pointsProvider.points}', // Replace with the actual points value
                 style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold),
               ),
             ],
@@ -158,20 +199,37 @@ class _PointsScreenState extends State<PointsScreen> {
             ],
           ),
           SizedBox(height: 10),
-          Expanded(
-            child: ListView.builder(
-              itemCount: 6,
-              itemBuilder: (context, index) {
-                DateTime currentDate =
-                    DateTime.now().subtract(Duration(days: index + 1));
-                String formattedDate = formatDate(
-                    currentDate); // Implement your own date formatting logic
 
-                return ListTile(
-                  title: Text(formattedDate),
-                  trailing: Text(
-                      '50'), // Replace with the actual points earned for the specific date
-                );
+          Expanded(
+            child: FutureBuilder<void>(
+              future: thirdtmethod,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                      child:
+                          CircularProgressIndicator()); // Display loading indicator while fetching data
+                } else if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                } else {
+                  // Data has been fetched, build the ListView.builder
+                  return ListView.builder(
+                    itemCount: 6,
+                    itemBuilder: (context, index) {
+                      DateTime currentDate =
+                          DateTime.now().subtract(Duration(days: index + 1));
+                      String formattedDate =
+                          DateFormat('yyyy-MM-dd').format(currentDate);
+
+                      return ListTile(
+                        title: Text(formattedDate),
+                        trailing: Text(
+                          '${_dailyPoints[formattedDate] ?? 0}',
+                          // Use the stored points for the specific date
+                        ),
+                      );
+                    },
+                  );
+                }
               },
             ),
           ),

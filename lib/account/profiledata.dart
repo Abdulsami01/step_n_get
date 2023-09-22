@@ -4,7 +4,10 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import 'package:step_n_get/screens/bottom_navBar.dart';
+
+import '../provider/pointsprovider.dart';
 
 class ProfileData extends StatefulWidget {
   @override
@@ -260,21 +263,64 @@ class _ProfileDataState extends State<ProfileData> {
   Future<void> _uploadData() async {
     String uid = _auth.currentUser!.uid;
     if (_formKey.currentState!.validate()) {
-      // Save user data to Firestore
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
+      // Check if email and phone are empty and set them to null if they are
+      String? email = _emailController.text.trim().isEmpty
+          ? null
+          : _emailController.text.trim();
+      String? phone = _phoneController.text.trim().isEmpty
+          ? null
+          : _phoneController.text.trim();
+
+      // Create a map of the fields you want to update
+      Map<String, dynamic> updatedData = {
         'firstName': _firstNameController.text.trim(),
         'lastName': _secondNameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'dateOfBirth':
-            selectedDate.toString(), // Convert date to string format if needed
-      }).then((_) {
-        // Data uploaded successfully
+        'dateOfBirth': selectedDate.toString(),
+      };
+
+      // Add email and phone to the map if they are not null
+      if (email != null) {
+        updatedData['email'] = email;
+      }
+      if (phone != null) {
+        updatedData['phone'] = phone;
+      }
+
+      // Reference to the user's profile document
+      DocumentReference profileDocRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('profile')
+          .doc(uid);
+
+      // Check if the profile document exists
+      bool profileDocExists = (await profileDocRef.get()).exists;
+
+      // Update the profile document or create it if it doesn't exist
+      await profileDocRef
+          .set(updatedData, SetOptions(merge: true))
+          .then((_) async {
+        // Data updated or created successfully
+        // Add 10 points if the email is provided
+        if (email != null && !profileDocExists) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .collection('points')
+              .add({
+            'emailBonusPoints': 10, // You can adjust the points as needed
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+          // ignore: use_build_context_synchronously
+          //  await context.read<PointsProvider>().updatePoints(uid, 20);
+        }
+        await context.read<PointsProvider>().updatePoints(uid, 232);
         Fluttertoast.showToast(
-          msg: "Data uploaded successfully",
+          msg: "Data updated successfully",
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           timeInSecForIosWeb: 1,
-          backgroundColor: Colors.red,
+          backgroundColor: Colors.green,
           textColor: Colors.white,
           fontSize: 16.0,
         );
@@ -285,9 +331,9 @@ class _ProfileDataState extends State<ProfileData> {
           ),
         );
       }).catchError((error) {
-        // Error uploading data
+        // Error updating data
         Fluttertoast.showToast(
-          msg: "Error uploading data",
+          msg: "Error updating data",
           toastLength: Toast.LENGTH_SHORT,
           gravity: ToastGravity.BOTTOM,
           timeInSecForIosWeb: 1,
@@ -296,6 +342,17 @@ class _ProfileDataState extends State<ProfileData> {
           fontSize: 16.0,
         );
       });
+    } else {
+      // Handle form validation errors
+      Fluttertoast.showToast(
+        msg: "Please fill in all required fields",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
     }
   }
 }

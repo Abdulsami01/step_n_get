@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "280105861567",
+    "firebase_url": "https://stepandget-default-rtdb.firebaseio.com",
     "project_id": "stepandget",
     "storage_bucket": "stepandget.appspot.com"
   },

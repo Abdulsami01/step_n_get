@@ -3,7 +3,11 @@ import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
 import 'package:pedometer/pedometer.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import 'dart:async';
+
+import '../provider/pointsprovider.dart';
+import '../provider/userauth.dart';
 
 class StepsScreen extends StatefulWidget {
   @override
@@ -53,11 +57,32 @@ class _StepsScreenState extends State<StepsScreen> {
     });
   }
 
+  bool pointsAddedToday = false;
+
   void onStepCount(StepCount event) {
     print(event);
     setState(() {
       _steps = event.steps.toString();
     });
+
+    // Check if points have already been added today
+    if (pointsAddedToday) {
+      return; // Points have already been added, no need to continue
+    }
+
+    // Check if the current steps are greater than or equal to the target steps
+    if (int.parse(_steps) >= targetSteps) {
+      // Add 30 points to the user's total points
+      final userId = context.read<UserProvider>().userId;
+      if (userId != null) {
+        context
+            .read<PointsProvider>()
+            .updatePoints(userId, 70); // Adjust the points as needed
+        print("Adding 70 points.");
+        pointsAddedToday =
+            true; // Set the flag to prevent multiple additions in a day
+      }
+    }
   }
 
   void onPedestrianStatusChanged(PedestrianStatus event) {

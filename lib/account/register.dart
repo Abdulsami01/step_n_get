@@ -1,7 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:provider/provider.dart';
 
+import '../provider/userauth.dart';
 import '../screens/bottom_navBar.dart';
 
 class Register extends StatefulWidget {
@@ -14,7 +17,8 @@ class Register extends StatefulWidget {
 class _RegisterState extends State<Register> {
   TextEditingController countryController = TextEditingController();
 
-  TextEditingController phoneController = TextEditingController();
+  TextEditingController phoneController =
+      TextEditingController(text: "3331234567");
   TextEditingController otpController = TextEditingController();
 
   FirebaseAuth auth = FirebaseAuth.instance;
@@ -138,11 +142,23 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  void loginWithPhone() async {
+  /*  void loginWithPhone() async {
     auth.verifyPhoneNumber(
       phoneNumber: "+92" + phoneController.text,
       verificationCompleted: (PhoneAuthCredential credential) async {
-        await auth.signInWithCredential(credential).then((value) {
+        await auth.signInWithCredential(credential).then((value) async {
+          /*   // User authenticated, now create a Firestore document for them
+          final user = value.user!;
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({
+            'phone': user.phoneNumber,
+            'createdAt': FieldValue.serverTimestamp(),
+            // Add other user data as needed
+          });
+          // Set the user's UID in the provider
+          context.read<UserProvider>().setUserId(user.uid); */
           print("You are logged in successfully");
         });
       },
@@ -157,20 +173,153 @@ class _RegisterState extends State<Register> {
       codeAutoRetrievalTimeout: (String verificationId) {},
     );
   }
+ */
+
+  void loginWithPhone() async {
+    String phoneNumber = "+92" + phoneController.text;
+
+    bool userExists = await checkIfUserExists(phoneNumber);
+
+    if (userExists) {
+      auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          await auth.signInWithCredential(credential).then((value) async {
+            print("You are logged in successfully");
+          });
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          print(e.message);
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          otpVisibility = true;
+          verificationID = verificationId;
+          setState(() {});
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+      );
+    } else {
+      auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          await auth.signInWithCredential(credential).then(
+            (value) async {
+              setState(() {
+                user = FirebaseAuth.instance.currentUser;
+              });
+
+              if (user != null) {
+                context.read<UserProvider>().setUserId(user!.uid);
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .set({
+                  'phone': user!.phoneNumber,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .collection('points')
+                    .doc('totalpoints')
+                    .set({
+                  'points': 30, // Set the initial points value as needed
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+
+                Fluttertoast.showToast(
+                  msg: "You are logged in successfully",
+                  toastLength: Toast.LENGTH_SHORT,
+                  gravity: ToastGravity.BOTTOM,
+                  timeInSecForIosWeb: 1,
+                  backgroundColor: Colors.blueAccent,
+                  textColor: Colors.white,
+                  fontSize: 16.0,
+                );
+
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BottomNavBar(),
+                  ),
+                );
+              } else {
+                Fluttertoast.showToast(
+                  msg: "Your login has failed",
+                  toastLength: Toast.LENGTH_SHORT,
+                  gravity: ToastGravity.BOTTOM,
+                  timeInSecForIosWeb: 1,
+                  backgroundColor: Colors.red,
+                  textColor: Colors.white,
+                  fontSize: 16.0,
+                );
+              }
+            },
+          );
+        },
+        verificationFailed: (FirebaseAuthException e) {
+          print(e.message);
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          otpVisibility = true;
+          verificationID = verificationId;
+          setState(() {});
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+      );
+    }
+  }
+
+  Future<bool> checkIfUserExists(String phoneNumber) async {
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('phone', isEqualTo: phoneNumber)
+        .limit(1)
+        .get();
+
+    return querySnapshot.docs.isNotEmpty;
+  }
 
   void verifyOTP() async {
     PhoneAuthCredential credential = PhoneAuthProvider.credential(
         verificationId: verificationID, smsCode: otpController.text);
 
     await auth.signInWithCredential(credential).then(
-      (value) {
+      (value) async {
         setState(() {
           user = FirebaseAuth.instance.currentUser;
         });
-      },
-    ).whenComplete(
-      () {
+
         if (user != null) {
+          // User authenticated, create a Firestore document for them here
+          context.read<UserProvider>().setUserId(user!.uid);
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user!.uid)
+              .set({
+            'phone': user!.phoneNumber,
+            'createdAt': FieldValue.serverTimestamp(),
+            'byotp': "mmmmmm"
+            // Add other user data as needed
+            // Set the user's UID in the provider
+          });
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user!.uid)
+              .collection('points')
+              .doc('totalpoints')
+              .set({
+            'points': 40, // Set the initial points value as needed
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          /*       await FirebaseFirestore.instance
+              .collection('points')
+              .doc(user!.uid)
+              .set({
+            'points': 30, // Default points value
+            'updatedAt': FieldValue.serverTimestamp(),
+          }); */
+
           Fluttertoast.showToast(
             msg: "You are logged in successfully",
             toastLength: Toast.LENGTH_SHORT,
@@ -180,6 +329,7 @@ class _RegisterState extends State<Register> {
             textColor: Colors.white,
             fontSize: 16.0,
           );
+
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -188,7 +338,7 @@ class _RegisterState extends State<Register> {
           );
         } else {
           Fluttertoast.showToast(
-            msg: "your login is failed",
+            msg: "Your login has failed",
             toastLength: Toast.LENGTH_SHORT,
             gravity: ToastGravity.BOTTOM,
             timeInSecForIosWeb: 1,
